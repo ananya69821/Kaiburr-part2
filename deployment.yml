@@ -1,0 +1,76 @@
+# To run on local docker desktop install kind and kubectl and run the following: 
+#
+# kubectl apply -f deployment.yml
+# kubectl expose deployment api-inv-doc --type=LoadBalancer --name=api-inv-doc-server
+#
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: starter-app
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: starter-app
+  template:
+    metadata:
+      labels:
+        app: starter-app
+    spec:
+      containers:
+      - name: starter-app
+        image: cn02dcontainerregistry1.azurecr.io/s_web:v1
+        ports:
+        - containerPort: 80
+        env:
+        - name: MONGO_INITDB_ROOT_USERNAME
+          valueFrom:
+            configMapKeyRef:
+              name: mongodb-username
+              key: username
+              name: MONGODB_URI
+              key: baseurl
+        - name: MONGO_INITDB_ROOT_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: mongodb-password
+              key: password
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: starter-app
+spec: 
+  ports:
+  - port: 80
+    targetPort: 80
+    protocol: TCP
+  selector:
+    app: starter-app
+
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata: 
+  name: starter-app
+  annotations:
+    kubernetes.io/ingress.class: azure/application-gateway 
+spec: 
+  rules:
+  - http:
+      paths:
+      - pathType: Prefix
+        path: /
+        backend:
+          service: 
+            name: starter-app
+            port: 
+              number: 80
+      # - pathType: Prefix
+      #   path: "/api-inv-doc"
+      #   backend:
+      #     service: 
+      #       name: api-inv-doc
+      #       port: 
+      #         number: 80

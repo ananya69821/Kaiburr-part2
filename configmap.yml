@@ -1,0 +1,15 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: username
+data:
+  username: admin
+  baseurl: mongodb://mongo:27017/test 
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: pwd
+data:
+  password: YWRtaW4K  
+type: Opaque

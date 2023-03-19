@@ -1,0 +1,116 @@
+trigger:
+- feature/ananya
+
+# pool: 
+#   vmImage: ubuntu-latest
+variables:
+- group: Keyvaults_Secrets
+
+stages:
+- stage: build
+  jobs:
+  - job: build
+    displayName: Build and Push
+    pool:
+      vmImage: ubuntu-latest
+    steps:
+    - checkout: self
+
+    - task: SonarCloudPrepare@1
+      displayName: 'Prepare SonarQube configuration'
+      inputs:
+        SonarCloud: 'sonar_svc'
+        organization: 'anuu'
+        scannerMode: 'CLI'
+        configMode: 'file'
+
+    - task: SonarCloudAnalyze@1
+      displayName: 'Run Code Analysis'
+
+    - task: SonarCloudPublish@1
+      inputs:
+        pollingTimeoutSec: '300'
+
+    #Replace Token in DockerFile
+    - task: qetza.replacetokens.replacetokens-task.replacetokens@5
+      displayName: Replace Token in DockerFile
+      inputs:
+        targetFiles: 'Dockerfile'
+        encoding: 'auto'
+        tokenPattern: 'rm'
+        writeBOM: true
+        actionOnMissing: 'continue'
+        keepToken: false
+        actionOnNoFiles: 'fail'
+        enableTransforms: false
+        enableRecursion: false
+        useLegacyPattern: false
+        enableTelemetry: true
+
+    - task: AzureCLI@2
+      displayName: Account show
+      inputs:
+        azureSubscription: 'azsub-sub-devsandbox'
+        scriptType: 'bash'
+        scriptLocation: 'inlineScript'
+        inlineScript: 'az account show'
+    - task: AzureCLI@2
+      displayName: build and push to containerRegistry
+      inputs:
+        azureSubscription: 'azsub-sub-devsandbox'
+        scriptType: 'bash'
+        scriptLocation: 'inlineScript'
+        inlineScript: |
+          docker-compose build
+          docker image ls
+          docker image tag s_web:latest cn02dcontainerregistry1.azurecr.io/s_web:v1
+          az acr login -n cn02dcontainerregistry1
+          docker image push cn02dcontainerregistry1.azurecr.io/s_web:v1
+
+    - task: Bash@3
+      displayName: download and Install trivy
+      inputs:
+        targetType: 'inline'
+        script: |
+          sudo apt-get install wget apt-transport-https gnupg lsb-release
+          wget -qO - https://aquasecurity.github.io/trivy-repo/deb/public.key | gpg --dearmor | sudo tee /usr/share/keyrings/trivy.gpg > /dev/null
+          echo "deb [signed-by=/usr/share/keyrings/trivy.gpg] https://aquasecurity.github.io/trivy-repo/deb $(lsb_release -sc) main" | sudo tee -a /etc/apt/sources.list.d/trivy.list
+          sudo apt-get update
+          sudo apt-get install trivy
+
+    - task: Bash@3
+      displayName: scan Image
+      inputs:
+        targetType: 'inline'
+        script: |
+         trivy image --exit-code 0 --severity MEDIUM cn02dcontainerregistry1.azurecr.io/s_web:latest
+         trivy image --exit-code 1 --severity HIGH,CRITICAL cn02dcontainerregistry1.azurecr.io/s_web:latest
+
+- stage: deployStage
+  displayName: dev
+  dependsOn:
+  - Build
+  condition: succeeded()
+  jobs:
+  - deployment: DeploymentDev
+    displayName: deployDev
+    pool: 
+      name: Default
+      demands:
+      - agent.name -equals CN02D-WAVMBA01-A3 
+    environment: 
+      name: dev
+    strategy:
+      runOnce: 
+        deploy:
+          steps:
+          - checkout: self
+
+          - task: AzureCLI@2
+            inputs:
+              azureSubscription: 'azsub-sub-devsandbox'
+              scriptType: 'ps'
+              scriptLocation: 'inlineScript'
+              inlineScript: |
+                az acr login -n cn02dcontainerregistry1 --expose-token
+                az aks command invoke --resource-group cn02d-RGAKS01 --name cn02daks1 --command "kubectl apply -f deployment.yml" -f deployment.yml
