@@ -1,5 +1,7 @@
 trigger:
-- feature/ananya
+  branches:
+    include:
+    - "*"
 
 # pool: 
 #   vmImage: ubuntu-latest
@@ -16,20 +18,20 @@ stages:
     steps:
     - checkout: self
 
-    - task: SonarCloudPrepare@1
-      displayName: 'Prepare SonarQube configuration'
-      inputs:
-        SonarCloud: 'sonar_svc'
-        organization: 'anuu'
-        scannerMode: 'CLI'
-        configMode: 'file'
+    # - task: SonarCloudPrepare@1
+    #   displayName: 'Prepare SonarQube configuration'
+    #   inputs:
+    #     SonarCloud: 'sonar_svc'
+    #     organization: 'anuu'
+    #     scannerMode: 'CLI'
+    #     configMode: 'file'
 
-    - task: SonarCloudAnalyze@1
-      displayName: 'Run Code Analysis'
+    # - task: SonarCloudAnalyze@1
+    #   displayName: 'Run Code Analysis'
 
-    - task: SonarCloudPublish@1
-      inputs:
-        pollingTimeoutSec: '300'
+    # - task: SonarCloudPublish@1
+    #   inputs:
+    #     pollingTimeoutSec: '300'
 
     #Replace Token in DockerFile
     - task: qetza.replacetokens.replacetokens-task.replacetokens@5
@@ -78,13 +80,13 @@ stages:
           sudo apt-get update
           sudo apt-get install trivy
 
-    - task: Bash@3
-      displayName: scan Image
-      inputs:
-        targetType: 'inline'
-        script: |
-         trivy image --exit-code 0 --severity MEDIUM cn02dcontainerregistry1.azurecr.io/s_web:latest
-         trivy image --exit-code 1 --severity HIGH,CRITICAL cn02dcontainerregistry1.azurecr.io/s_web:latest
+    # - task: Bash@3
+    #   displayName: scan Image
+    #   inputs:
+    #     targetType: 'inline'
+    #     script: |
+    #      trivy image --exit-code 0 --severity MEDIUM cn02dcontainerregistry1.azurecr.io/s_web:latest
+    #      trivy image --exit-code 1 --severity HIGH,CRITICAL cn02dcontainerregistry1.azurecr.io/s_web:latest
 
 - stage: deployStage
   displayName: dev

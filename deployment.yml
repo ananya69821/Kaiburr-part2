@@ -67,10 +67,3 @@ spec:
             name: starter-app
             port: 
               number: 80
-      # - pathType: Prefix
-      #   path: "/api-inv-doc"
-      #   backend:
-      #     service: 
-      #       name: api-inv-doc
-      #       port: 
-      #         number: 80
